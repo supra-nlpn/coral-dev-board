@@ -1,4 +1,4 @@
-#Coral Dev Board
+# Coral Dev Board
 
 ## Coral Dev Board Setup Guide (v1.0 - Model 2019)
 
