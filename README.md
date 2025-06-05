@@ -211,3 +211,6 @@
 ---
 
 You have now successfully set up the Coral Dev Board and performed an inference using the PyCoral API. For further exploration, try deploying your own models, experimenting with additional examples, or training and compiling custom models with the Edge TPU Compiler.
+
+## Articles for Reference
+- [TPUXtract: An Exhaustive HyperparameterExtraction Framework](https://tches.iacr.org/index.php/TCHES/article/view/11923/11782)
