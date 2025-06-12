@@ -1,4 +1,13 @@
 # Coral Dev Board
+Goto;
+
+- [Coral Dev Board Setup Guide](#coral-dev-board-setup-guide-v10---model-2019)
+- [Edge TPU Server and Remote Client Setup](#edge-tpu-server-and-remote-client-setup)
+
+For safe shutdown before disconnecting the power,
+```
+sudo shutdown now
+```
 
 ## Coral Dev Board Setup Guide (v1.0 - Model 2019)
 
