@@ -208,9 +208,153 @@
    Ara macao (Scarlet Macaw): 0.75781
    ```
 
+You have now successfully set up the Coral Dev Board and performed an inference using the PyCoral API
+
 ---
 
-You have now successfully set up the Coral Dev Board and performed an inference using the PyCoral API. For further exploration, try deploying your own models, experimenting with additional examples, or training and compiling custom models with the Edge TPU Compiler.
+## Edge TPU Server and Remote Client Setup
 
+## 🔧 1. Set Up Your Project Folder on the Dev Board
+
+- **Start the Dev Board** 
+
+   - connect the power supply and open new terminal on host machine
+
+- **Activate the Virtual Environment**:
+
+   ```bash
+   source ~/mdt-env/bin/activate
+   ```
+
+- **Establish USB Connection**:  
+   - Connect a USB-C cable from your host computer to the board's `OTG` port  
+
+- **Access the Board's Shell**:
+
+   ```bash
+   mdt shell
+   ```
+- **Inside (mendel@hopeful-apple:~$):**
+   ```
+   mkdir ~/edge_tpu_server && cd ~/edge_tpu_server
+   cp ~/coral/pycoral/test_data/mobilenet_v2_1.0_224_inat_bird_quant_edgetpu.tflite .
+   cp ~/coral/pycoral/test_data/inat_bird_labels.txt .
+   ```
+
+## 2. Create server.py — HTTP Server Script
+   ```
+   nano server.py
+   ```
+   ```
+   from flask import Flask, request, jsonify
+   from PIL import Image
+   import io
+   from pycoral.utils.edgetpu import make_interpreter
+   from pycoral.adapters import common, classify
+   from pycoral.utils import dataset
+   import numpy as np
+   from periphery import GPIO
+
+   interpreter = make_interpreter('mobilenet_v2_1.0_224_inat_bird_quant_edgetpu.tflite')
+   interpreter.allocate_tensors()
+   labels = dataset.read_label_file('inat_bird_labels.txt')
+
+   app = Flask(__name__)
+
+   def trigger():
+      trigger_gpio = GPIO("/dev/gpiochip2", 9, "out") #physical-pin 16
+      trigger_gpio.write(True)
+      trigger_gpio.write(False)
+      trigger_gpio.close()
+
+   @app.route('/predict', methods=['POST'])
+   def predict():
+      trigger() # Trigger the GPIO pin to indicate a new request
+      if 'image' not in request.files:
+         return jsonify({'error': 'No image provided'}), 400
+
+      image_file = request.files['image']
+      img = Image.open(image_file.stream).convert('RGB').resize((224, 224))
+      trigger() # Trigger the GPIO pin to indicate image processing start
+      common.set_input(interpreter, img)
+      interpreter.invoke()
+      trigger() # Trigger the GPIO pin to indicate inference completion
+      result = classify.get_classes(interpreter, top_k=1)[0]
+      trigger() # Trigger the GPIO pin to indicate response ready
+      response = {
+         'label': labels.get(int(result.id), 'unknown'),  # cast to int
+         'class_id': int(result.id),                     # cast to int
+         'score': float(result.score)                    # cast to float
+      }
+
+      return jsonify(response)
+
+
+   if __name__ == '__main__':
+      app.run(host='0.0.0.0', port=8000)
+
+   ```
+`Ctrl O` and `Enter`, `Ctrl X`  
+   ```
+   mendel@hopeful-apple:~/edge_tpu_server$ python3 server.py
+   * Serving Flask app 'server'
+   * Debug mode: off
+   WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+   * Running on all addresses (0.0.0.0)
+   * Running on http://127.0.0.1:8000
+   * Running on http://10.245.86.157:8000  
+   Press CTRL+C to quit
+   ```
+
+##  3. Create client.py — Remote Client Script
+
+- Both Client and Server should be on the same LAN 
+- New terminal
+- Enter venv
+   ```
+   $ python3 -m venv edge_env
+   $ source edge_env/bin/activate
+   (edge_env) lab1@lab1-Precision-5820-Tower:~/Desktop$
+   ```
+
+   ```
+   nano client.py
+   ```
+   ```
+   import sys
+   import requests
+
+   if len(sys.argv) != 2:
+      print("Usage: python3 client.py <image_path>")
+      sys.exit(1)
+
+   image_path = sys.argv[1]
+   url = 'http://10.245.86.157:8000/predict'  # Dev Board  IP address and port
+
+   with open(image_path, 'rb') as img_file:
+      files = {'image': img_file}
+      response = requests.post(url, files=files)
+
+   try:
+      print(response.json())
+   except Exception as e:
+      print("Error parsing JSON response:", e)
+      print("Raw response:", response.text)
+   ```
+   `Ctrl O` and `Enter`, `Ctrl X`  
+   ```
+   python3 client.py <path to image file>
+   ```
+- Output should be something like
+   ```
+   {'class_id': 923, 'label': 'Ara macao (Scarlet Macaw)', 'score': 0.67578125}
+   ```
+
+
+
+
+
+
+---
 ## Articles for Reference
 - [TPUXtract: An Exhaustive HyperparameterExtraction Framework](https://tches.iacr.org/index.php/TCHES/article/view/11923/11782)
